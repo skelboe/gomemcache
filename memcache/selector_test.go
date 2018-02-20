@@ -18,6 +18,23 @@ package memcache
 
 import "testing"
 
+func TestSetServces(t *testing.T) {
+	s := new(ServerList)
+	s.SetServers("/path/to/socket", "localhost:1", "ext://localhost:1")
+
+	if s.addrs[0].Network() != "unix" {
+		t.Errorf("Addr network is `%s`, wanted `unix`", s.addrs[0].Network())
+	}
+
+	if s.addrs[1].Network() != "tcp" {
+		t.Errorf("Addr network is `%s`, wanted `tcp`", s.addrs[1].Network())
+	}
+
+	if s.addrs[2].Network() != "ext" {
+		t.Errorf("Addr network is `%s`, wanted `tcp`", s.addrs[2].Network())
+	}
+}
+
 func BenchmarkPickServer(b *testing.B) {
 	// at least two to avoid 0 and 1 special cases:
 	benchPickServer(b, "127.0.0.1:1234", "127.0.0.1:1235")

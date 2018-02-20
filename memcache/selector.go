@@ -19,7 +19,7 @@ package memcache
 import (
 	"hash/crc32"
 	"net"
-	"strings"
+	"regexp"
 	"sync"
 )
 
@@ -46,6 +46,8 @@ type staticAddr struct {
 	ntw, str string
 }
 
+var protoRx = regexp.MustCompile(`^(\w+)\:\/\/(.+)`)
+
 func newStaticAddr(a net.Addr) net.Addr {
 	return &staticAddr{
 		ntw: a.Network(),
@@ -68,19 +70,28 @@ func (s *staticAddr) String() string  { return s.str }
 func (ss *ServerList) SetServers(servers ...string) error {
 	naddr := make([]net.Addr, len(servers))
 	for i, server := range servers {
-		if strings.Contains(server, "/") {
+		if server[0] == '/' {
 			addr, err := net.ResolveUnixAddr("unix", server)
 			if err != nil {
 				return err
 			}
 			naddr[i] = newStaticAddr(addr)
-		} else {
-			tcpaddr, err := net.ResolveTCPAddr("tcp", server)
-			if err != nil {
-				return err
-			}
-			naddr[i] = newStaticAddr(tcpaddr)
+			continue
 		}
+
+		if protoRx.MatchString(server) {
+			matches := protoRx.FindStringSubmatch(server)
+			if matches[1] != "tcp" {
+				naddr[i] = &staticAddr{ntw: matches[1], str: matches[2]}
+				continue
+			}
+		}
+
+		tcpaddr, err := net.ResolveTCPAddr("tcp", server)
+		if err != nil {
+			return err
+		}
+		naddr[i] = newStaticAddr(tcpaddr)
 	}
 
 	ss.mu.Lock()

@@ -27,6 +27,27 @@ After this command *gomemcache* is ready to use. Its source will be in:
          ...
     }
 
+
+## Example using with app engine
+
+    import (
+            "github.com/bradfitz/gomemcache/memcache"
+    )
+
+    func index(w http.ResponseWriter, r *http.Request) {
+        dialer := func(net, addr string, timeout time.Duration) (net.Conn, error) {
+		    return socket.Dial(appengine.NewContext(r), "tcp", addr)
+		}
+        memcache.RegisterDial("ext", dialer)
+
+        mc := memcache.New("ext://10.0.0.1:11211", "ext://10.0.0.2:11211", "ext://10.0.0.3:11212")
+        ...
+    }
+
+    func main() {
+        http.Handle("/", index)
+    }
+
 ## Full docs, see:
 
 See https://godoc.org/github.com/bradfitz/gomemcache/memcache

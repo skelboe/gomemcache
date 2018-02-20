@@ -254,12 +254,38 @@ func (cte *ConnectTimeoutError) Error() string {
 	return "memcache: connect timeout to " + cte.Addr.String()
 }
 
+// DialFunc is a function which can be used to establish the network connection.
+// Custom dial functions must be registered with RegisterDial
+type DialFunc func(net, addr string, timeout time.Duration) (net.Conn, error)
+
+// dials contains all regsitered dialers
+var dials map[string]DialFunc
+
+// RegisterDial registers a custom dial function. It can then be used by the
+// network address mynet(addr), where mynet is the registered new network.
+// addr is passed as a parameter to the dial function.
+func RegisterDial(net string, dial DialFunc) {
+	if dials == nil {
+		dials = make(map[string]DialFunc)
+	}
+	dials[net] = dial
+}
+
 func (c *Client) dial(addr net.Addr) (net.Conn, error) {
 	type connError struct {
 		cn  net.Conn
 		err error
 	}
 
+	// Check if the address has a custom dialer
+	if dial, ok := dials[addr.Network()]; ok {
+		nc, err := dial(addr.Network(), addr.String(), c.netTimeout())
+		if err == nil {
+			return nc, nil
+		}
+	}
+
+	// Use the net dialer
 	nc, err := net.DialTimeout(addr.Network(), addr.String(), c.netTimeout())
 	if err == nil {
 		return nc, nil
