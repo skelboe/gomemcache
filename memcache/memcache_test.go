@@ -32,6 +32,18 @@ import (
 
 const testServer = "localhost:11211"
 
+type testAddr struct {
+	net  string
+	addr string
+}
+
+func (n testAddr) Network() string {
+	return n.net
+}
+func (n testAddr) String() string {
+	return n.addr
+}
+
 func setup(t *testing.T) bool {
 	c, err := net.Dial("tcp", testServer)
 	if err != nil {
@@ -286,4 +298,42 @@ func BenchmarkOnItem(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		c.onItem(&item, dummyFn)
 	}
+}
+
+func TestCustomDialer(t *testing.T) {
+	fakeServer, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		t.Fatal("Could not open fake server: ", err)
+	}
+	defer fakeServer.Close()
+
+	go func() {
+		for {
+			if c, err := fakeServer.Accept(); err == nil {
+				go func() { io.Copy(ioutil.Discard, c) }()
+			} else {
+				return
+			}
+		}
+	}()
+
+	addr := fakeServer.Addr()
+	c := New(addr.String())
+	if _, err := c.getConn(addr); err != nil {
+		t.Fatal("failed to initialize connection to fake server")
+	}
+
+	RegisterDial("ext", func(n, a string, to time.Duration) (net.Conn, error) {
+		nc, err := net.DialTimeout("tcp", a, to)
+		if err != nil {
+			t.Fatal(err.Error())
+		}
+		return nc, nil
+	})
+
+	nc, err := (&Client{}).dial(testAddr{"ext", fakeServer.Addr().String()})
+	if err != nil {
+		t.Errorf("unexpected error: %s", err.Error())
+	}
+	nc.Close()
 }
