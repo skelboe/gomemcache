@@ -277,11 +277,14 @@ func (c *Client) dial(addr net.Addr) (net.Conn, error) {
 		err error
 	}
 
-	// Check if the address has a custom dialer
+	// Check if the address has a custom dialer. If a custom dialer
+	// is used, we need to return any errors
 	if dial, ok := dials[addr.Network()]; ok {
 		nc, err := dial(addr.Network(), addr.String(), c.netTimeout())
 		if err == nil {
 			return nc, nil
+		} else {
+			return nil, err
 		}
 	}
 
